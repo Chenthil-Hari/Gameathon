@@ -1,64 +1,73 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Smartphone, KeyRound, ArrowRight, X } from 'lucide-react';
+import { Shield, Smartphone, KeyRound, ArrowRight } from 'lucide-react';
 import './Login.css';
 
 export default function Login() {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [verificationCode, setVerificationCode] = useState('');
-    const [generatedOtp, setGeneratedOtp] = useState('');
+    const [confirmationResult, setConfirmationResult] = useState(null);
     const [isOtpSent, setIsOtpSent] = useState(false);
-    const [showOtpPopup, setShowOtpPopup] = useState(false);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { loginAnonymous, loginWithGoogle } = useAuth();
+    const { setupRecaptcha, loginWithGoogle } = useAuth();
     const navigate = useNavigate();
 
     const handleSendOtp = async (e) => {
         e.preventDefault();
         setError('');
+        setSuccess('');
 
         if (!phoneNumber || phoneNumber.length < 10) {
-            setError('Please enter a valid phone number');
-            return;
-        }
-
-        setIsLoading(true);
-
-        // Generate a random 6-digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedOtp(otp);
-
-        // Simulate a small network delay
-        await new Promise(resolve => setTimeout(resolve, 800));
-
-        setIsOtpSent(true);
-        setShowOtpPopup(true);
-        setIsLoading(false);
-    };
-
-    const handleVerifyOtp = async (e) => {
-        e.preventDefault();
-        setError('');
-
-        if (!verificationCode) {
-            setError('Please enter the 6-digit code');
-            return;
-        }
-
-        if (verificationCode !== generatedOtp) {
-            setError('Incorrect verification code. Please try again.');
+            setError('Please enter a valid phone number with country code');
             return;
         }
 
         setIsLoading(true);
         try {
-            await loginAnonymous();
+            const result = await setupRecaptcha(phoneNumber);
+            setConfirmationResult(result);
+            setIsOtpSent(true);
+            setSuccess(`OTP sent to ${phoneNumber}! Check your messages.`);
+        } catch (err) {
+            console.error("Phone Auth Error:", err);
+            if (err.code === 'auth/invalid-phone-number') {
+                setError('Invalid phone number. Make sure to include country code (e.g. +91).');
+            } else if (err.code === 'auth/too-many-requests') {
+                setError('Too many attempts. Please wait a few minutes and try again.');
+            } else {
+                setError(err.message || 'Failed to send OTP. Please try again.');
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleVerifyOtp = async (e) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+
+        if (!verificationCode || verificationCode.length !== 6) {
+            setError('Please enter the 6-digit code');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            await confirmationResult.confirm(verificationCode);
             navigate('/dashboard');
         } catch (err) {
-            console.error("Login Error:", err);
-            setError('Login failed. Please try again.');
+            console.error("OTP Verification Error:", err);
+            if (err.code === 'auth/invalid-verification-code') {
+                setError('Invalid verification code. Please check and try again.');
+            } else if (err.code === 'auth/code-expired') {
+                setError('Verification code has expired. Please request a new one.');
+            } else {
+                setError('Verification failed. Please try again.');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -83,12 +92,13 @@ export default function Login() {
                     <h2>Welcome to SecuritySim</h2>
                     <p>
                         {isOtpSent
-                            ? 'Enter the 6-digit code to verify'
+                            ? 'Enter the 6-digit code sent to your phone'
                             : 'Sign in with your phone number or Google'}
                     </p>
                 </div>
 
                 {error && <div className="login-error">{error}</div>}
+                {success && <div className="login-success">{success}</div>}
 
                 {!isOtpSent ? (
                     <form className="login-form" onSubmit={handleSendOtp}>
@@ -110,12 +120,15 @@ export default function Login() {
                             </small>
                         </div>
 
+                        {/* Firebase reCAPTCHA container */}
+                        <div id="recaptcha-container"></div>
+
                         <button
                             type="submit"
                             className="btn-primary login-btn"
                             disabled={isLoading}
                         >
-                            {isLoading ? 'Sending...' : (
+                            {isLoading ? 'Sending OTP...' : (
                                 <>
                                     Send OTP <ArrowRight size={18} />
                                 </>
@@ -155,8 +168,9 @@ export default function Login() {
                                 onClick={() => {
                                     setIsOtpSent(false);
                                     setVerificationCode('');
-                                    setGeneratedOtp('');
+                                    setConfirmationResult(null);
                                     setError('');
+                                    setSuccess('');
                                 }}
                             >
                                 Use a different phone number
@@ -185,31 +199,6 @@ export default function Login() {
                     Continue with Google
                 </button>
             </div>
-
-            {/* OTP Popup */}
-            {showOtpPopup && (
-                <div className="otp-popup-overlay">
-                    <div className="otp-popup">
-                        <button
-                            className="otp-popup-close"
-                            onClick={() => setShowOtpPopup(false)}
-                        >
-                            <X size={20} />
-                        </button>
-                        <div className="otp-popup-icon">📱</div>
-                        <h3>Your OTP Code</h3>
-                        <p>A verification code has been sent to <strong>{phoneNumber}</strong></p>
-                        <div className="otp-code-display">{generatedOtp}</div>
-                        <p className="otp-popup-hint">Enter this code in the verification field</p>
-                        <button
-                            className="btn-primary"
-                            onClick={() => setShowOtpPopup(false)}
-                        >
-                            Got it!
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

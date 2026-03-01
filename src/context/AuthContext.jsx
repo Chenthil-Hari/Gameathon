@@ -4,7 +4,8 @@ import {
     onAuthStateChanged,
     GoogleAuthProvider,
     signInWithPopup,
-    signInAnonymously
+    RecaptchaVerifier,
+    signInWithPhoneNumber
 } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -25,13 +26,27 @@ export function AuthProvider({ children }) {
         };
     }, []);
 
+    const setupRecaptcha = (phoneNumber) => {
+        // Clear any existing recaptcha to prevent duplicate widget errors
+        if (window.recaptchaVerifier) {
+            window.recaptchaVerifier.clear();
+            window.recaptchaVerifier = null;
+        }
+
+        const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+            'size': 'invisible',
+            'callback': () => {
+                // reCAPTCHA solved
+            }
+        });
+
+        window.recaptchaVerifier = recaptchaVerifier;
+        return signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+    };
+
     const loginWithGoogle = () => {
         const provider = new GoogleAuthProvider();
         return signInWithPopup(auth, provider);
-    };
-
-    const loginAnonymous = () => {
-        return signInAnonymously(auth);
     };
 
     const logout = () => {
@@ -39,7 +54,7 @@ export function AuthProvider({ children }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginAnonymous, logout }}>
+        <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, setupRecaptcha }}>
             {children}
         </AuthContext.Provider>
     );
