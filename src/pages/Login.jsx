@@ -10,7 +10,7 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const { login, signup, loginWithGoogle } = useAuth();
+    const { login, signup, loginWithGoogle, checkEmailExists } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -38,7 +38,13 @@ export default function Login() {
         } catch (err) {
             console.error("Auth Exception:", err);
             if (isLogin && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.message.includes('invalid-credential') || err.message.includes('user-not-found'))) {
-                setShowSignupModal(true);
+                // Determine if the user actually exists before showing the modal
+                const exists = await checkEmailExists(email);
+                if (!exists) {
+                    setShowSignupModal(true);
+                } else {
+                    setError('Incorrect email or password. Please try again.');
+                }
             } else if (!isLogin && (err.code === 'auth/email-already-in-use' || err.message.includes('email-already-in-use'))) {
                 setError('An account with this email already exists. Please log in instead.');
             } else {

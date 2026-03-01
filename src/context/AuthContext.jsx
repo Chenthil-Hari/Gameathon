@@ -6,7 +6,8 @@ import {
     onAuthStateChanged,
     GoogleAuthProvider,
     signInWithPopup,
-    sendEmailVerification
+    sendEmailVerification,
+    fetchSignInMethodsForEmail
 } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -53,8 +54,21 @@ export function AuthProvider({ children }) {
         return Promise.reject("No user logged in");
     };
 
+    const checkEmailExists = async (email) => {
+        try {
+            const methods = await fetchSignInMethodsForEmail(auth, email);
+            return methods.length > 0;
+        } catch (err) {
+            console.error("Error checking email existence:", err);
+            // If enumeration protection is enabled, this might fail or return falsely, 
+            // but we'll default to assuming it exists to prevent the modal loop, 
+            // OR default to throwing so we handle it gracefully.
+            return true; // We return true on error to prevent inappropriately showing the signup modal
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, loading, login, signup, loginWithGoogle, logout, resendVerification }}>
+        <AuthContext.Provider value={{ user, loading, login, signup, loginWithGoogle, logout, resendVerification, checkEmailExists }}>
             {children}
         </AuthContext.Provider>
     );
