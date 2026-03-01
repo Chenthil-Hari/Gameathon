@@ -6,11 +6,10 @@ import './Login.css';
 
 export default function Login() {
     const [isLogin, setIsLogin] = useState(true);
-    const [showSignupModal, setShowSignupModal] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const { login, signup, loginWithGoogle, checkEmailExists } = useAuth();
+    const { login, signup, loginWithGoogle } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -38,13 +37,7 @@ export default function Login() {
         } catch (err) {
             console.error("Auth Exception:", err);
             if (isLogin && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.message.includes('invalid-credential') || err.message.includes('user-not-found'))) {
-                // Determine if the user actually exists before showing the modal
-                const exists = await checkEmailExists(email);
-                if (!exists) {
-                    setShowSignupModal(true);
-                } else {
-                    setError('Incorrect email or password. Please try again.');
-                }
+                setError('Incorrect email or password. Please try again.');
             } else if (!isLogin && (err.code === 'auth/email-already-in-use' || err.message.includes('email-already-in-use'))) {
                 setError('An account with this email already exists. Please log in instead.');
             } else {
@@ -156,48 +149,6 @@ export default function Login() {
                 </div>
             </div>
 
-            {/* Signup Modal Popup */}
-            {showSignupModal && (
-                <div className="modal-overlay">
-                    <div className="modal-content">
-                        <div className="modal-icon">
-                            <AlertCircle size={48} />
-                        </div>
-                        <h3>Account Not Found</h3>
-                        <p>We couldn't find an account matching <strong>{email}</strong>.</p>
-                        <p>Would you like to quickly create a new account using the password you just entered?</p>
-
-                        <div className="modal-actions">
-                            <button
-                                className="btn-outline"
-                                onClick={() => setShowSignupModal(false)}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="btn-primary"
-                                onClick={async () => {
-                                    try {
-                                        await signup(email, password);
-                                        navigate('/verify-email');
-                                    } catch (err) {
-                                        setShowSignupModal(false);
-                                        if (err.code === 'auth/email-already-in-use' || err.message.includes('email-already-in-use')) {
-                                            setError('An account with this email already exists. Please log in instead.');
-                                            setIsLogin(true);
-                                        } else {
-                                            setError('Signup failed. Please try again.');
-                                        }
-                                    }
-                                }}
-                            >
-                                <UserPlus size={18} style={{ marginRight: '8px' }} />
-                                Yes, Sign Up
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
