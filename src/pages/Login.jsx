@@ -1,48 +1,59 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Mail, Lock, User, UserPlus, AlertCircle } from 'lucide-react';
+import { Shield, Smartphone, KeyRound, ArrowRight } from 'lucide-react';
 import './Login.css';
 
 export default function Login() {
-    const [isLogin, setIsLogin] = useState(true);
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [verificationCode, setVerificationCode] = useState('');
+    const [verificationId, setVerificationId] = useState(null); // Holds confirmationResult
+    const [isOtpSent, setIsOtpSent] = useState(false);
     const [error, setError] = useState('');
-    const { login, signup, loginWithGoogle } = useAuth();
+    const [isLoading, setIsLoading] = useState(false);
+    const { setupRecaptcha, loginWithGoogle } = useAuth();
     const navigate = useNavigate();
 
-    const handleSubmit = async (e) => {
+    const handleSendOtp = async (e) => {
         e.preventDefault();
         setError('');
 
-        if (!email || !password) {
-            setError('Please fill in all fields');
+        if (!phoneNumber) {
+            setError('Please enter a valid phone number');
             return;
         }
 
-        if (password.length < 6) {
-            setError('Password must be at least 6 characters');
-            return;
-        }
-
+        setIsLoading(true);
         try {
-            if (isLogin) {
-                await login(email, password);
-                navigate('/dashboard');
-            } else {
-                await signup(email, password);
-                navigate('/verify-email');
-            }
+            const confirmationResult = await setupRecaptcha(phoneNumber);
+            setVerificationId(confirmationResult);
+            setIsOtpSent(true);
         } catch (err) {
-            console.error("Auth Exception:", err);
-            if (isLogin && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.message.includes('invalid-credential') || err.message.includes('user-not-found'))) {
-                setError('Incorrect email or password. Please try again.');
-            } else if (!isLogin && (err.code === 'auth/email-already-in-use' || err.message.includes('email-already-in-use'))) {
-                setError('An account with this email already exists. Please log in instead.');
-            } else {
-                setError('Authentication failed. Please check your credentials and try again.');
-            }
+            console.error("Phone Auth Error:", err);
+            setError(err.message || 'Failed to send verification code. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleVerifyOtp = async (e) => {
+        e.preventDefault();
+        setError('');
+
+        if (!verificationCode) {
+            setError('Please enter the 6-digit code');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            await verificationId.confirm(verificationCode);
+            navigate('/dashboard');
+        } catch (err) {
+            console.error("OTP Verification Error:", err);
+            setError('Incorrect verification code. Please try again.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -62,59 +73,92 @@ export default function Login() {
                     <div className="login-logo">
                         <Shield size={32} />
                     </div>
-                    <h2>{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
+                    <h2>Welcome to SecuritySim</h2>
                     <p>
-                        {isLogin
-                            ? 'Enter your credentials to access your training'
-                            : 'Sign up to start your cybersecurity journey'}
+                        {isOtpSent
+                            ? 'Enter the 6-digit code sent to your phone'
+                            : 'Sign in with your phone number or Google'}
                     </p>
                 </div>
 
                 {error && <div className="login-error">{error}</div>}
 
-                <form className="login-form" onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label htmlFor="email">Email Address</label>
-                        <div className="input-with-icon">
-                            <Mail size={18} />
-                            <input
-                                type="email"
-                                id="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="you@example.com"
-                                required
-                            />
+                {!isOtpSent ? (
+                    <form className="login-form" onSubmit={handleSendOtp}>
+                        <div className="form-group">
+                            <label htmlFor="phone">Phone Number</label>
+                            <div className="input-with-icon">
+                                <Smartphone size={18} />
+                                <input
+                                    type="tel"
+                                    id="phone"
+                                    value={phoneNumber}
+                                    onChange={(e) => setPhoneNumber(e.target.value)}
+                                    placeholder="+1 234 567 8900"
+                                    required
+                                />
+                            </div>
+                            <small style={{ color: '#8b9bb4', marginTop: '0.5rem', display: 'block', fontSize: '0.8rem' }}>
+                                Include your country code (e.g. +1 or +91)
+                            </small>
                         </div>
-                    </div>
 
-                    <div className="form-group">
-                        <label htmlFor="password">Password</label>
-                        <div className="input-with-icon">
-                            <Lock size={18} />
-                            <input
-                                type="password"
-                                id="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••"
-                                required
-                            />
+                        {/* Firebase requires a container to render the hidden reCAPTCHA */}
+                        <div id="recaptcha-container"></div>
+
+                        <button
+                            type="submit"
+                            className="btn-primary login-btn"
+                            disabled={isLoading}
+                        >
+                            {isLoading ? 'Sending...' : (
+                                <>
+                                    Send Verification Code <ArrowRight size={18} />
+                                </>
+                            )}
+                        </button>
+                    </form>
+                ) : (
+                    <form className="login-form" onSubmit={handleVerifyOtp}>
+                        <div className="form-group">
+                            <label htmlFor="code">Verification Code</label>
+                            <div className="input-with-icon">
+                                <KeyRound size={18} />
+                                <input
+                                    type="text"
+                                    id="code"
+                                    value={verificationCode}
+                                    onChange={(e) => setVerificationCode(e.target.value)}
+                                    placeholder="123456"
+                                    maxLength="6"
+                                    required
+                                />
+                            </div>
                         </div>
-                    </div>
 
-                    <button type="submit" className="btn-primary login-btn">
-                        {isLogin ? (
-                            <>
-                                <User size={18} /> Login
-                            </>
-                        ) : (
-                            <>
-                                <UserPlus size={18} /> Sign Up
-                            </>
-                        )}
-                    </button>
-                </form>
+                        <button
+                            type="submit"
+                            className="btn-primary login-btn"
+                            disabled={isLoading}
+                        >
+                            {isLoading ? 'Verifying...' : 'Verify and Sign In'}
+                        </button>
+
+                        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                            <button
+                                type="button"
+                                className="toggle-btn"
+                                onClick={() => {
+                                    setIsOtpSent(false);
+                                    setVerificationCode('');
+                                    setError('');
+                                }}
+                            >
+                                Use a different phone number
+                            </button>
+                        </div>
+                    </form>
+                )}
 
                 <div className="login-divider">
                     <span>OR</span>
@@ -124,6 +168,7 @@ export default function Login() {
                     type="button"
                     className="btn-outline google-btn"
                     onClick={handleGoogleLogin}
+                    disabled={isLoading}
                 >
                     <svg viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -134,21 +179,7 @@ export default function Login() {
                     </svg>
                     Continue with Google
                 </button>
-
-                <div className="login-toggle">
-                    <p>
-                        {isLogin ? "Don't have an account? " : "Already have an account? "}
-                        <button
-                            type="button"
-                            className="toggle-btn"
-                            onClick={() => setIsLogin(!isLogin)}
-                        >
-                            {isLogin ? 'Sign up' : 'Log in'}
-                        </button>
-                    </p>
-                </div>
             </div>
-
         </div>
     );
 }
