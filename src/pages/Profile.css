@@ -39,6 +39,8 @@
     align-items: flex-end;
     margin-top: -50px;
     gap: 1.5rem;
+    position: relative;
+    z-index: 10;
 }
 
 .profile-avatar {
@@ -79,6 +81,8 @@
 .profile-details {
     padding-bottom: 0.5rem;
     flex: 1;
+    position: relative;
+    z-index: 11;
 }
 
 .profile-details h1 {
