@@ -35,6 +35,15 @@ export function AuthProvider({ children }) {
         return signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
     };
 
+    const loginWithGoogle = () => {
+        const provider = new GoogleAuthProvider();
+        return signInWithPopup(auth, provider);
+    };
+
+    const logout = () => {
+        return signOut(auth);
+    };
+
     return (
         <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, setupRecaptcha }}>
             {children}
