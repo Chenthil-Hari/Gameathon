@@ -1,4 +1,6 @@
 import { createContext, useContext, useReducer, useEffect } from 'react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, auth } from '../firebase';
 
 const GameContext = createContext(null);
 const GameDispatchContext = createContext(null);
@@ -107,6 +109,26 @@ function gameReducer(state, action) {
     return newState;
 }
 
+// Sync user score to Firestore leaderboard
+async function syncLeaderboard(user, state) {
+    if (!user) return;
+    try {
+        const displayName = user.displayName || user.email?.split('@')[0] || 'Anonymous';
+        await setDoc(doc(db, 'leaderboard', user.uid), {
+            displayName: displayName,
+            photoURL: user.photoURL || null,
+            score: state.score,
+            level: state.level,
+            xp: state.xp,
+            scenariosCompleted: state.completedScenarios.length,
+            badgesCount: state.badges.length,
+            updatedAt: Date.now()
+        }, { merge: true });
+    } catch (err) {
+        console.warn('Failed to sync leaderboard:', err);
+    }
+}
+
 export function GameProvider({ children }) {
     const [state, dispatch] = useReducer(gameReducer, null, loadState);
 
@@ -117,6 +139,14 @@ export function GameProvider({ children }) {
             document.documentElement.removeAttribute('data-theme');
         }
     }, [state.settings.highContrast]);
+
+    // Sync score to Firestore whenever it changes
+    useEffect(() => {
+        const user = auth.currentUser;
+        if (user) {
+            syncLeaderboard(user, state);
+        }
+    }, [state.score, state.level, state.xp, state.badges.length, state.completedScenarios.length]);
 
     return (
         <GameContext.Provider value={state}>

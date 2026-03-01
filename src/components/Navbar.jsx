@@ -1,5 +1,5 @@
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { Shield, LayoutDashboard, Crosshair, Award, Settings, Menu, X, LogIn, LogOut, User } from 'lucide-react';
+import { Shield, LayoutDashboard, Crosshair, Award, Settings, Menu, X, LogIn, LogOut, User, Trophy } from 'lucide-react';
 import { useGame } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
@@ -48,6 +48,11 @@ export default function Navbar() {
                         <li>
                             <NavLink to="/achievements" onClick={() => setMenuOpen(false)}>
                                 <Award size={16} /> Achievements
+                            </NavLink>
+                        </li>
+                        <li>
+                            <NavLink to="/leaderboard" onClick={() => setMenuOpen(false)}>
+                                <Trophy size={16} /> Leaderboard
                             </NavLink>
                         </li>
                         <li>
