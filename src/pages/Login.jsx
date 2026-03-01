@@ -37,6 +37,8 @@ export default function Login() {
         } catch (err) {
             if (isLogin && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.message.includes('invalid-credential'))) {
                 setShowSignupModal(true);
+            } else if (!isLogin && err.code === 'auth/email-already-in-use') {
+                setError('An account with this email already exists. Please log in instead.');
             } else {
                 setError(err.message || 'Authentication failed. Please try again.');
             }
