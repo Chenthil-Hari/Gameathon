@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ref, set, get, query, orderByChild } from 'firebase/database';
-import { rtdb } from '../firebase';
+import { collection, query, orderBy, limit, getDocs, doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
 import { Trophy, Medal, Shield, User, Crown } from 'lucide-react';
@@ -22,10 +22,10 @@ export default function Leaderboard() {
         setError('');
 
         try {
-            // Step 1: Write current user's score to Realtime DB
+            // Step 1: Write current user's score to Firestore
             if (user) {
                 const displayName = user.displayName || user.email?.split('@')[0] || 'Anonymous';
-                await set(ref(rtdb, 'leaderboard/' + user.uid), {
+                await setDoc(doc(db, 'leaderboard', user.uid), {
                     displayName: displayName,
                     photoURL: user.photoURL || null,
                     score: gameState.score,
@@ -34,46 +34,22 @@ export default function Leaderboard() {
                     scenariosCompleted: gameState.completedScenarios.length,
                     badgesCount: gameState.badges.length,
                     updatedAt: Date.now()
-                });
+                }, { merge: true });
             }
 
-            // Step 2: Fetch all leaderboard entries
-            const snapshot = await get(query(ref(rtdb, 'leaderboard'), orderByChild('score')));
-
-            if (snapshot.exists()) {
-                const data = [];
-                snapshot.forEach((child) => {
-                    data.push({
-                        id: child.key,
-                        ...child.val()
-                    });
-                });
-
-                // Sort descending by score (RTDB orderByChild is ascending)
-                data.sort((a, b) => b.score - a.score);
-
-                // Assign ranks
-                data.forEach((player, index) => {
-                    player.rank = index + 1;
-                });
-
-                setPlayers(data);
-            } else {
-                // No data yet — show current user as only entry
-                if (user && gameState) {
-                    setPlayers([{
-                        id: user.uid,
-                        rank: 1,
-                        displayName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
-                        photoURL: user.photoURL || null,
-                        score: gameState.score,
-                        level: gameState.level,
-                        xp: gameState.xp,
-                        scenariosCompleted: gameState.completedScenarios.length,
-                        badgesCount: gameState.badges.length
-                    }]);
-                }
-            }
+            // Step 2: Fetch all leaderboard entries ranked by score
+            const q = query(
+                collection(db, 'leaderboard'),
+                orderBy('score', 'desc'),
+                limit(50)
+            );
+            const snapshot = await getDocs(q);
+            const data = snapshot.docs.map((docSnap, index) => ({
+                id: docSnap.id,
+                rank: index + 1,
+                ...docSnap.data()
+            }));
+            setPlayers(data);
         } catch (err) {
             console.error('Leaderboard error:', err);
             setError(err.message || 'Failed to load leaderboard.');
@@ -140,7 +116,7 @@ export default function Leaderboard() {
             {error && (
                 <div className="leaderboard-error">
                     <p>⚠️ {error}</p>
-                    <small>Enable Realtime Database in Firebase Console → Build → Realtime Database → Create Database → Start in test mode.</small>
+                    <small>Showing local data as fallback.</small>
                 </div>
             )}
 
