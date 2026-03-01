@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import Scenarios from './pages/Scenarios';
 import ScenarioPlay from './pages/ScenarioPlay';
 import Achievements from './pages/Achievements';
+import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import './App.css';
 
@@ -27,6 +28,7 @@ function App() {
                 <Route path="/scenarios" element={<ProtectedRoute><Scenarios /></ProtectedRoute>} />
                 <Route path="/scenarios/:id" element={<ProtectedRoute><ScenarioPlay /></ProtectedRoute>} />
                 <Route path="/achievements" element={<ProtectedRoute><Achievements /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>
             </main>
