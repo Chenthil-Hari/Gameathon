@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useGame } from '../context/GameContext';
@@ -14,7 +14,9 @@ export default function Leaderboard() {
     const gameState = useGame();
 
     useEffect(() => {
-        loadLeaderboard();
+        if (user) {
+            loadLeaderboard();
+        }
     }, [user]);
 
     const loadLeaderboard = async () => {
@@ -23,51 +25,52 @@ export default function Leaderboard() {
 
         try {
             // Step 1: Write current user's score to Firestore
-            if (user) {
-                const displayName = user.displayName || user.email?.split('@')[0] || 'Anonymous';
-                await setDoc(doc(db, 'leaderboard', user.uid), {
-                    displayName: displayName,
-                    photoURL: user.photoURL || null,
-                    score: gameState.score,
-                    level: gameState.level,
-                    xp: gameState.xp,
-                    scenariosCompleted: gameState.completedScenarios.length,
-                    badgesCount: gameState.badges.length,
-                    updatedAt: Date.now()
-                }, { merge: true });
-            }
+            const displayName = user.displayName || user.email?.split('@')[0] || 'Anonymous';
+            await setDoc(doc(db, 'leaderboard', user.uid), {
+                displayName: displayName,
+                photoURL: user.photoURL || null,
+                score: gameState.score,
+                level: gameState.level,
+                xp: gameState.xp,
+                scenariosCompleted: gameState.completedScenarios.length,
+                badgesCount: gameState.badges.length,
+                updatedAt: Date.now()
+            }, { merge: true });
 
-            // Step 2: Fetch all leaderboard entries ranked by score
-            const q = query(
-                collection(db, 'leaderboard'),
-                orderBy('score', 'desc'),
-                limit(50)
-            );
-            const snapshot = await getDocs(q);
-            const data = snapshot.docs.map((docSnap, index) => ({
-                id: docSnap.id,
-                rank: index + 1,
-                ...docSnap.data()
-            }));
+            // Step 2: Fetch all leaderboard entries (simple getDocs, sort client-side)
+            const snapshot = await getDocs(collection(db, 'leaderboard'));
+            const data = [];
+            snapshot.forEach((docSnap) => {
+                data.push({ id: docSnap.id, ...docSnap.data() });
+            });
+
+            // Sort by score descending
+            data.sort((a, b) => b.score - a.score);
+            data.forEach((player, i) => { player.rank = i + 1; });
+
             setPlayers(data);
         } catch (err) {
             console.error('Leaderboard error:', err);
-            setError(err.message || 'Failed to load leaderboard.');
+
+            // Show specific fix instructions based on the error
+            if (err.code === 'permission-denied' || err.message?.includes('permission')) {
+                setError('Firestore rules are blocking access. Go to Firebase Console → Firestore → Rules → Replace with the rules shown below, then click Publish.');
+            } else {
+                setError(err.message || 'Failed to load leaderboard.');
+            }
 
             // Fallback: show current user from local data
-            if (user && gameState) {
-                setPlayers([{
-                    id: user.uid,
-                    rank: 1,
-                    displayName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
-                    photoURL: user.photoURL || null,
-                    score: gameState.score,
-                    level: gameState.level,
-                    xp: gameState.xp,
-                    scenariosCompleted: gameState.completedScenarios.length,
-                    badgesCount: gameState.badges.length
-                }]);
-            }
+            setPlayers([{
+                id: user.uid,
+                rank: 1,
+                displayName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+                photoURL: user.photoURL || null,
+                score: gameState.score,
+                level: gameState.level,
+                xp: gameState.xp,
+                scenariosCompleted: gameState.completedScenarios.length,
+                badgesCount: gameState.badges.length
+            }]);
         } finally {
             setLoading(false);
         }
@@ -116,7 +119,19 @@ export default function Leaderboard() {
             {error && (
                 <div className="leaderboard-error">
                     <p>⚠️ {error}</p>
-                    <small>Showing local data as fallback.</small>
+                    <div className="rules-fix">
+                        <small>Go to <strong>Firebase Console → Firestore Database → Rules</strong> tab, replace with:</small>
+                        <pre>{`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /leaderboard/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}`}</pre>
+                        <small>Then click <strong>Publish</strong> and refresh this page.</small>
+                    </div>
                 </div>
             )}
 

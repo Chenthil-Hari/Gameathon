@@ -83,6 +83,27 @@
     font-size: 0.8rem;
 }
 
+.rules-fix {
+    margin-top: 0.75rem;
+    text-align: left;
+}
+
+.rules-fix pre {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 0;
+    font-size: 0.8rem;
+    color: var(--primary);
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.rules-fix strong {
+    color: var(--text-primary);
+}
+
 /* Podium Section */
 .podium {
     display: grid;
