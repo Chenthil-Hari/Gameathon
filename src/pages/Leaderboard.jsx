@@ -1,35 +1,74 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
+import { useGame } from '../context/GameContext';
 import { Trophy, Medal, Shield, User, Crown } from 'lucide-react';
 import './Leaderboard.css';
 
 export default function Leaderboard() {
     const [players, setPlayers] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const { user } = useAuth();
+    const gameState = useGame();
 
     useEffect(() => {
-        fetchLeaderboard();
-    }, []);
+        loadLeaderboard();
+    }, [user]);
 
-    const fetchLeaderboard = async () => {
+    const loadLeaderboard = async () => {
+        setLoading(true);
+        setError('');
+
         try {
+            // Step 1: Write/update current user's score to Firestore
+            if (user) {
+                const displayName = user.displayName || user.email?.split('@')[0] || 'Anonymous';
+                await setDoc(doc(db, 'leaderboard', user.uid), {
+                    displayName: displayName,
+                    photoURL: user.photoURL || null,
+                    email: user.email || null,
+                    score: gameState.score,
+                    level: gameState.level,
+                    xp: gameState.xp,
+                    scenariosCompleted: gameState.completedScenarios.length,
+                    badgesCount: gameState.badges.length,
+                    updatedAt: Date.now()
+                }, { merge: true });
+            }
+
+            // Step 2: Fetch all leaderboard entries ranked by score
             const q = query(
                 collection(db, 'leaderboard'),
                 orderBy('score', 'desc'),
                 limit(50)
             );
             const snapshot = await getDocs(q);
-            const data = snapshot.docs.map((doc, index) => ({
-                id: doc.id,
+            const data = snapshot.docs.map((docSnap, index) => ({
+                id: docSnap.id,
                 rank: index + 1,
-                ...doc.data()
+                ...docSnap.data()
             }));
             setPlayers(data);
         } catch (err) {
-            console.error('Failed to fetch leaderboard:', err);
+            console.error('Leaderboard error:', err);
+            setError(err.message || 'Failed to load leaderboard.');
+
+            // Fallback: show at least the current user
+            if (user && gameState) {
+                setPlayers([{
+                    id: user.uid,
+                    rank: 1,
+                    displayName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+                    photoURL: user.photoURL || null,
+                    score: gameState.score,
+                    level: gameState.level,
+                    xp: gameState.xp,
+                    scenariosCompleted: gameState.completedScenarios.length,
+                    badgesCount: gameState.badges.length
+                }]);
+            }
         } finally {
             setLoading(false);
         }
@@ -70,10 +109,17 @@ export default function Leaderboard() {
                         <p>Top cyber defenders ranked by safety score</p>
                     </div>
                 </div>
-                <button className="btn-outline refresh-btn" onClick={() => { setLoading(true); fetchLeaderboard(); }}>
+                <button className="btn-outline refresh-btn" onClick={loadLeaderboard}>
                     Refresh
                 </button>
             </div>
+
+            {error && (
+                <div className="leaderboard-error">
+                    <p>⚠️ {error}</p>
+                    <small>Make sure Firestore is enabled in your Firebase Console. Showing local data as fallback.</small>
+                </div>
+            )}
 
             {players.length > 0 ? (
                 <>
