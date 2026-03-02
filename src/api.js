@@ -1,4 +1,7 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+// In production (Vercel), API routes are at /api/* on the same domain
+// In development, the Express server runs on localhost:5000
+const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE_URL = isDev ? 'http://localhost:5000/api' : '/api';
 
 const TOKEN_KEY = 'securitysim_token';
 
