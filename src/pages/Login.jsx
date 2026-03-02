@@ -14,12 +14,27 @@ export default function Login() {
     const navigate = useNavigate();
     const googleBtnRef = useRef(null);
 
+    const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '528409060511-dela76hurum5543jepetoj66k1l4555m.apps.googleusercontent.com';
+
+    const handleGoogleCallback = async (response) => {
+        setIsLoading(true);
+        setError('');
+        try {
+            await loginWithGoogle(response.credential);
+            navigate('/dashboard');
+        } catch (err) {
+            setError(err.message || 'Google login failed.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     // Initialize Google Sign-In
     useEffect(() => {
         const initGoogle = () => {
             if (window.google?.accounts?.id) {
                 window.google.accounts.id.initialize({
-                    client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+                    client_id: GOOGLE_CLIENT_ID,
                     callback: handleGoogleCallback
                 });
                 window.google.accounts.id.renderButton(googleBtnRef.current, {
@@ -43,19 +58,6 @@ export default function Login() {
             initGoogle();
         }
     }, []);
-
-    const handleGoogleCallback = async (response) => {
-        setIsLoading(true);
-        setError('');
-        try {
-            await loginWithGoogle(response.credential);
-            navigate('/dashboard');
-        } catch (err) {
-            setError(err.message || 'Google login failed.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
